@@ -5,6 +5,8 @@ import { pick } from "lodash";
 import { SendInBlueProvider } from "*/providers/SendInBlueProvider";
 import { WEBSITE_DOMAIN } from "../utilities/constants";
 import { pickUser } from "*/utilities/transform";
+import { JwtProvider } from "../providers/JwtProvider";
+import { env } from '*/config/environtment'
 const createNew = async (data) => {
   try {
     const existUser = await UserModel.findOneByEmail(data.email);
@@ -75,7 +77,52 @@ const verifyAccount = async (data) => {
   }
 };
 
+
+
+const signIn = async (data) => {
+  try {
+    const existUser = await UserModel.findOneByEmail(data.email)
+    if (!existUser) {
+      throw new Error('Email khong ton tai!')
+    }
+
+    if (!existUser.isActive) {
+      throw new Error('Your account is not active!')
+    }
+
+    // Compare password
+    if (!bcryptjs.compareSync(data.password, existUser.password)) {
+      throw new Error('Your email or password is incorrect!')
+    }
+
+    const userInfoToStoreInJwtToken = {
+      _id: existUser._id,
+      email: existUser.email
+    }
+
+    // Xử lý tokens
+    // Tạo 2 loại token, accessToken và refreshToken để trả về cho phía Front-end
+    const accessToken = await JwtProvider.generateToken(
+      env.ACCESS_TOKEN_SECRET_SIGNATURE,
+      env.ACCESS_TOKEN_SECRET_LIFE,
+      userInfoToStoreInJwtToken
+    )
+
+    const refreshToken = await JwtProvider.generateToken(
+      env.REFRESH_TOKEN_SECRET_SIGNATURE,
+      env.REFRESH_TOKEN_SECRET_LIFE,
+      userInfoToStoreInJwtToken
+    )
+
+    return { accessToken, refreshToken, ...pickUser(existUser) }
+
+  } catch (error) {
+    throw new Error(error)
+  }
+}
+
 export const UserService = {
   createNew,
   verifyAccount,
+  signIn
 };
